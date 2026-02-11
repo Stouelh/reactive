@@ -58,6 +58,36 @@ app.post("/postchatt/", async (req, res) => {
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8000;
 
+// Proxy Ollama streaming endpoint to the iOS app
+app.post("/llmDraft", async (req, res) => {
+  try {
+    const ollamaResp = await fetch("http://127.0.0.1:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+
+    res.status(ollamaResp.status);
+    res.setHeader("Content-Type", "application/x-ndjson");
+
+    if (!ollamaResp.body) {
+      res.end();
+      return;
+    }
+
+    const reader = ollamaResp.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (err) {
+    res.status(500).json({ error: "llmDraft  proxy failed", detail: String(err) });
+  }
+});
+
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
