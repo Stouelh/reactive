@@ -1,6 +1,6 @@
-```
 [Unit]
 Description=EECS Reactive chatterd
+Requires=postgresql.service
 After=network.target
 StartLimitIntervalSec=0
 
