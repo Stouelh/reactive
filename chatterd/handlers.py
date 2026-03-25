@@ -137,23 +137,23 @@ async def llmchat(request):
                                     "data": f'{{"error": {json.dumps(str(err))}}}'
                                 }
                         if tokens:
-                            completion = " ".join(tokens)
+                            completion = "".join(tokens)
                             await cur.execute(
                                 'INSERT INTO chatts (name, message, id, appid) VALUES (%s, %s, gen_random_uuid(), %s);',
                                 ("assistant", completion, ollamaRequest.appID,)
                             )
-            if "WINNER!!!" in completion:
-            parts = completion.split(":")
-            if len(parts) >= 3:
-            try:
-            lat = float(parts[1])
-            lon = float(parts[2])
-            yield {
-            "event": "latlon",
-            "data": f'{{"lat": {lat}, "lon": {lon}}}'
-            }
-            except Exception:
-            pass
+                            if "WINNER!!!" in completion:
+                                parts = completion.split(":")
+                                if len(parts) >= 3:
+                                    try:
+                                        lat = float(parts[1])
+                                        lon = float(parts[2])
+                                        yield {
+                                            "event": "latlon",
+                                            "data": f'{{"lat": {lat}, "lon": {lon}}}'
+                                        }
+                                    except Exception:
+                                        pass
                 except Exception as err:
                     yield {
                         "event": "error",
