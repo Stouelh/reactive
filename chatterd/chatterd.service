@@ -1,0 +1,17 @@
+[Unit]
+Description=EECS Reactive chatterd
+Requires=postgresql.service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=1
+User=root
+Group=www-data
+WorkingDirectory=/home/ubuntu/reactive/chatterd
+ExecStart=/home/ubuntu/reactive/chatterd/.venv/bin/granian --host 0.0.0.0 --port 443 --interface asgi --ssl-certificate /home/ubuntu/reactive/chatterd.crt --ssl-keyfile /home/ubuntu/reactive/chatterd.key main:server
+
+[Install]
+WantedBy=multi-user.target
