@@ -168,3 +168,31 @@ async def llmprep(request):
                     status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
     print(f'llmprep: {ollamaRequest.appID}')
     return JSONResponse({})
+async def postmaps(request):
+    try:
+        chatt = Chatt(**(await request.json()))
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse(f'Unprocessable entity: {str(err)}', status_code=422)
+    try:
+        async with main.server.pool.connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute('INSERT INTO chatts (name, message, id, geodata) VALUES '
+                    '(%s, %s, gen_random_uuid(), %s);', (chatt.name, chatt.message, chatt.geodata))
+                return JSONResponse({})
+    except StringDataRightTruncation as err:
+        print(f'Message too long: {str(err)}')
+        return JSONResponse(f'Message too long: {str(err)}', status_code=400)
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse(f'{type(err).__name__}: {str(err)}', status_code=500)
+
+async def getmaps(request):
+    try:
+        async with main.server.pool.connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute('SELECT name, message, id, time, geodata FROM chatts ORDER BY time ASC;')
+                return JSONResponse(to_jsonable_python(await cursor.fetchall()))
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse(f'{type(err).__name__}: {str(err)}', status_code=500)

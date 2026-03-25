@@ -18,6 +18,8 @@ routes = [
     Route('/postchatt', handlers.postchatt, methods=['POST']),
     Route('/llmchat', handlers.llmchat, methods=['POST']),
     Route('/llmprep', handlers.llmprep, methods=['POST']),
+Route('/getmaps', handlers.getmaps, methods=['GET']),
+Route('/postmaps', handlers.postmaps, methods=['POST']),
 ]
 
 # must come after routes and lifespan definitions
