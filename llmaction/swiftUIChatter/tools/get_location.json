@@ -1,0 +1,8 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_location",
+    "description": "Get current location",
+    "parameters": null
+  }
+}

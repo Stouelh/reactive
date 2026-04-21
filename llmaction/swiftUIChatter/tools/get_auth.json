@@ -1,0 +1,8 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_auth",
+    "description": "Obtain authorization token from the user via Google Sign-In and biometric authentication",
+    "parameters": null
+  }
+}
