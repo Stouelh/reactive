@@ -4,6 +4,7 @@ from dataclasses_json import dataclass_json, config
 from http import HTTPStatus
 import httpx
 import pkgutil
+import asyncio
 
 @dataclass_json
 @dataclass
@@ -33,6 +34,7 @@ class OllamaToolSchema:
     function: OllamaToolFunction
 
 WEATHER_JSON = pkgutil.get_data(__name__, "tools/get_weather.json").decode("utf-8")
+OLLAMA_CLI_JSON = pkgutil.get_data(__name__, "tools/ollama_cli.json").decode("utf-8")
 
 @dataclass_json
 @dataclass
@@ -62,6 +64,27 @@ async def getWeather(argv: list[str]) -> tuple[str | None, str | None]:
     except Exception as err:
         return None, f"Cannot connect to Open Meteo: {err}"
 
+async def ollamaCli(argv: list[str]) -> tuple[str | None, str | None]:
+    try:
+        command = argv[0]
+        allowed = ["ls", "pull", "rm"]
+        if command not in allowed:
+            return None, f"ollama_cli: command '{command}' not allowed. Must be one of {allowed}"
+        cmd = ["ollama", command]
+        if len(argv) > 1 and argv[1]:
+            cmd.append(argv[1])
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            return None, f"ollama_cli error: {stderr.decode().strip()}"
+        return stdout.decode().strip(), None
+    except Exception as err:
+        return None, f"ollama_cli exception: {err}"
+
 type ToolFunction = Callable[[list[str]], Awaitable[tuple[str | None, str | None]]]
 
 @dataclass
@@ -71,6 +94,7 @@ class Tool:
 
 TOOLBOX: dict[str, Tool] = {
     "get_weather": Tool(OllamaToolSchema.from_json(WEATHER_JSON), getWeather),
+    "ollama_cli": Tool(OllamaToolSchema.from_json(OLLAMA_CLI_JSON), ollamaCli),
 }
 
 @dataclass_json
@@ -88,5 +112,11 @@ async def toolInvoke(function: OllamaFunctionCall) -> tuple[str | None, str | No
     tool = TOOLBOX.get(function.name)
     if tool:
         argv = [function.arguments[prop] for prop in tool.schema.function.parameters.required]
+        # append optional model argument if present
+        if tool.schema.function.parameters and tool.schema.function.parameters.properties:
+            for key in tool.schema.function.parameters.properties:
+                if tool.schema.function.parameters.required and key not in tool.schema.function.parameters.required:
+                    if key in function.arguments:
+                        argv.append(function.arguments[key])
         return await tool.function(argv)
     return None, None
