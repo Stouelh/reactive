@@ -22,6 +22,8 @@ routes = [
     Route('/llmprep', handlers.llmprep, methods=['POST']),
 Route('/getmaps', handlers.getmaps, methods=['GET']),
 Route('/postmaps', handlers.postmaps, methods=['POST']),
+    Route('/postauth/', handlers.postauth, methods=['POST']),
+    Route('/adduser/', handlers.adduser, methods=['POST']),
 ]
 
 # must come after routes and lifespan definitions

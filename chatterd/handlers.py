@@ -15,6 +15,9 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, Response, StreamingResponse
+from google.auth.transport import requests
+from google.oauth2 import id_token
+import hashlib, time
 
 async def top(request):
     return JSONResponse('EECS Reactive chatterd', status_code=200)
@@ -113,6 +116,16 @@ class OllamaResponse:
 class Location:
     lat: str
     lon: str
+
+@dataclass
+class AuthChatt:
+    chatterID: str
+    message: str
+
+@dataclass
+class Chatter:
+    clientID: str
+    idToken: str
 
 async def llmchat(request):
     try:
@@ -324,3 +337,59 @@ async def llmtools(request):
                         yield {"data": json.dumps({"error": str(err)})}
 
     return EventSourceResponse(ndjson_yield_sse())
+
+async def adduser(request):
+    try:
+        chatter = Chatter(**(await request.json()))
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse('Unprocessable entity', status_code=422)
+    now = time.time()  # secs since epoch (1/1/70, 00:00:00 UTC)
+    try:
+        idinfo = id_token.verify_oauth2_token(chatter.idToken, requests.Request(), chatter.clientID, clock_skew_in_seconds=50)
+    except ValueError as err:
+        return JSONResponse('Unauthroized', status_code=401)
+    try:
+        username = idinfo['name']
+    except:
+        username = "Profile NA"
+    # Compute chatterID
+    backendSecret = "ifyougiveamouse"  # or server's private key
+    nonce = str(now)
+    hashable = chatter.idToken + backendSecret + nonce
+    chatterID = hashlib.sha256(hashable.strip().encode('utf-8')).hexdigest()
+    lifetime = min(int(idinfo['exp']-now)+1, 300)  # secs, up to 1800, idToken lifetime
+    # add to database
+    try:
+        async with main.server.pool.connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute('DELETE FROM chatters WHERE %s > expiration;', (now, ))
+                await cursor.execute('INSERT INTO chatters (chatterid, username, expiration) VALUES '
+                                     '(%s, %s, %s);', (chatterID, username, now+lifetime))
+                return JSONResponse({'username': username, 'chatterID': chatterID, 'lifetime': lifetime})
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse(f'{type(err).__name__}: {str(err)}', status_code=500)
+
+async def postauth(request):
+    try:
+        chatt = AuthChatt(**(await request.json()))
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse('Unprocessable entity', status_code=422)
+    try:
+        async with main.server.pool.connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute('SELECT username, expiration FROM chatters WHERE chatterID = %s;',
+                                     (chatt.chatterID,))
+                row = await cursor.fetchone()
+                now = time.time()
+                if row is None or now > row[1]:
+                    return JSONResponse('Unauthorized', status_code=401)
+                # insert chatt
+                await cursor.execute('INSERT INTO chatts (name, message, id) VALUES (%s, %s, gen_random_uuid());',
+                                     (row[0], chatt.message))
+                return JSONResponse({})
+    except Exception as err:
+        print(f'{err=}')
+        return JSONResponse(f'{type(err).__name__}: {str(err)}', status_code=500)
